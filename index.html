@@ -1,0 +1,195 @@
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Assignment 4</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.js"></script>
+  <style>
+    body {
+      background-color: gray;
+    }
+    .tooltip {
+      position: absolute;
+      background-color: silver;
+      padding: 10px;
+      color: black;
+    }
+  </style>
+</head>
+
+<body>
+  <svg></svg>
+  <div class="tooltip"></div>
+</body>
+
+<script>
+  let width = 800,
+    height = 800;
+
+  let svg = d3.select("svg")
+    .attr("viewBox", "0 0 " + width + " " + height)
+
+  // Load external data
+  Promise.all([d3.json("data/links-sample.json"), d3.json("data/cases-sample.json")]).then(data => {
+
+    data[0].forEach(e => {
+      e.source = e.infector;
+      e.target = e.infectee;
+    });
+
+    let linkpath = svg
+      .append("g")
+      .attr("id", "links")
+      .selectAll("path")
+      .data(data[0])
+      .enter()
+      .append("path")
+      .attr("fill", "none")
+      .attr("stroke", "black");
+
+    let node = svg.append("g")
+      .attr("id", "nodes")
+      .selectAll("circle")
+      .data(data[1])
+      .enter()
+      .append("circle")
+      .attr("r", 20)
+      .style("stroke", "grey").style("stroke-width", 2)
+      .style("fill", (d) => {
+        if (d.gender == "male") {
+          return 'lightblue'
+        } else {
+          return 'pink'
+        }
+      })
+
+      .on("mouseover", (event, d) => {
+        d3.select(".tooltip")
+          .html(
+            "Gender: " +
+            d.gender +
+            "<br> Age: " +
+            d.age +
+            "<br> ID: " + 
+            d.id +
+            "<br> Date of Infection: " +
+            d.date +
+            "<br> Vaccination Status: " +
+            d.vaccinated 
+          )
+          .style("left", event.pageX + "px")
+          .style("top", event.pageY + "px")
+          .style("opacity", 1);
+
+        let path = d3.select(event.currentTarget)
+        path.style("stroke", "black").style("stroke-width", 5);
+      })
+
+      .on("mouseout", (event, d) => {
+        d3.select(".tooltip").text("").style("opacity", 0);
+        let path = d3.select(event.currentTarget)
+        path.style("stroke", "black").style("stroke-width", 0.5);
+      })
+      .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended));
+    
+    function dragstarted(event, d) {
+      if (!event.active) simulation.alphaTarget(1).restart();
+      d.fx = d.x;
+      d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+      d.fx = event.x;
+      d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+      if (!event.active) simulation.alphaTarget(0);
+      d.fx = null;
+      d.fy = null;
+    }    
+    
+    let image = svg.append("g")
+      .selectAll("image")
+      .data(data[1])
+      .enter()
+      .append("image")
+      .attr("xlink:href", (i) => {
+        if (i.gender == "male") return "data/male.png";
+        else return "data/female.png";
+      })
+      .attr("width", 30)
+      .attr("height", 30)
+      .attr("pointer-events", "none");
+
+    let xPosition = d3.scaleOrdinal()
+      .domain([0, 1])
+      .range([400, 500]);
+
+    let simulation = d3.forceSimulation()
+      .nodes(data[1])
+      .force(
+        "x",
+        d3
+        .forceX()
+        .strength(0.02)
+        .x(function(d) {
+          return xPosition(d.class);
+        })
+      )
+      .force(
+        "y",
+        d3
+        .forceY()
+        .strength(0.02)
+        .y(height / 2)
+      )
+      .force(
+        "link",
+        d3
+        .forceLink(data[0])
+        .id((d) => d.id)
+        .distance(100)
+        .strength(0.5)
+      )
+      .force("charge", d3.forceManyBody().strength(20))
+      .force("collide", d3.forceCollide().strength(1).radius(30))
+      .on("tick", d => {
+        node
+          .attr("cx", d => d.x)
+          .attr("cy", d => d.y);
+
+        linkpath.attr("d", function(d) {
+          var dx = d.target.x - d.source.x,
+            dy = d.target.y - d.source.y,
+            dr = Math.sqrt(dx * dx + dy * dy);
+          return "M" + d.source.x + "," + d.source.y + "A" + dr + "," + dr + " 0 0, 1 " + d.target.x + "," + d.target.y;
+        });
+
+        image
+          .attr("x", d => d.x - 15)
+          .attr("y", d => d.y - 15);
+      });
+
+    var colorScale = d3
+      .scaleOrdinal()
+      .domain(["Male", "Female"])
+      .range(["lightblue", "pink"]);
+      
+    var legend = d3
+      .legendColor()
+      .labels(["Male", "Female"])
+      .scale(colorScale)
+      .title("Legend: ");
+
+    svg.append("g")
+      .attr("transform", "translate(30, 50)")
+      .call(legend);
+
+  })
+</script>
+</html>
